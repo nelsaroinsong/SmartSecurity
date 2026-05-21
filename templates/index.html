@@ -1,0 +1,99 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IoT Security Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <h1>IoT Security Dashboard</h1>
+      <p>Monitoring gerakan dari sensor PIR secara realtime.</p>
+    </header>
+
+    <section class="cards">
+      <article class="card status" id="statusCard">
+        <h2>Status Area</h2>
+        <p class="badge" id="motionBadge">STANDBY</p>
+        <p><strong>Device:</strong> <span id="deviceId">-</span></p>
+        <p><strong>Update terakhir:</strong> <span id="updatedAt">-</span></p>
+        <p><strong>Total event:</strong> <span id="totalEvents">0</span></p>
+      </article>
+
+      <article class="card">
+        <h2>Info API</h2>
+        <p><code>POST /api/motion</code> untuk ESP32 kirim data.</p>
+        <p><code>GET /api/status</code> untuk dashboard ambil status.</p>
+        <pre>{
+  "device_id": "esp32-ruang-tamu",
+  "motion": true
+}</pre>
+      </article>
+    </section>
+
+    <section class="card log">
+      <h2>Riwayat Notifikasi</h2>
+      <ul id="eventList"></ul>
+    </section>
+  </main>
+
+  <script>
+    const motionBadge = document.getElementById('motionBadge');
+    const statusCard = document.getElementById('statusCard');
+    const deviceId = document.getElementById('deviceId');
+    const updatedAt = document.getElementById('updatedAt');
+    const totalEvents = document.getElementById('totalEvents');
+    const eventList = document.getElementById('eventList');
+
+    function fmtDate(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      return d.toLocaleString('id-ID');
+    }
+
+    function render(data) {
+      const s = data.status || {};
+      const active = !!s.motion;
+
+      motionBadge.textContent = active ? 'ALERT: GERAKAN TERDETEKSI' : 'AMAN / STANDBY';
+      motionBadge.className = `badge ${active ? 'danger' : 'safe'}`;
+      statusCard.className = `card status ${active ? 'danger-card' : 'safe-card'}`;
+
+      deviceId.textContent = s.device_id || '-';
+      updatedAt.textContent = fmtDate(s.updated_at);
+      totalEvents.textContent = String(s.total_events ?? 0);
+
+      eventList.innerHTML = '';
+      const events = data.events || [];
+      if (!events.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Belum ada notifikasi masuk.';
+        eventList.appendChild(li);
+        return;
+      }
+
+      for (const ev of events) {
+        const li = document.createElement('li');
+        li.className = ev.motion ? 'danger-item' : 'safe-item';
+        li.textContent = `[${fmtDate(ev.timestamp)}] ${ev.device_id} - ${ev.motion ? 'Gerakan terdeteksi' : 'Area aman kembali'}`;
+        eventList.appendChild(li);
+      }
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        console.error('Gagal ambil data:', err);
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
